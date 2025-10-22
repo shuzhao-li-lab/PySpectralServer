@@ -470,6 +470,89 @@ def search_batch_endpoint():
     return jsonify(all_results)
 
 if __name__ == '__main__':
+    from flask import render_template_string
+
+
+    HTML_TEMPLATE = """
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8">
+    <title>MS2 Search</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 40px auto; }
+        input, select, button, textarea { margin: 6px 0; padding: 6px; width: 100%; }
+        .result { white-space: pre-wrap; background: #f6f6f6; padding: 10px; border-radius: 4px; }
+    </style>
+    </head>
+    <body>
+    <h2>MS2 Spectral Search Portal</h2>
+
+    <label>Library:</label>
+    <select id="library"></select>
+
+    <label>Search method:</label>
+    <select id="method">
+        <option value="matchms_cosine">MatchMS Cosine</option>
+        <option value="flash_entropy">Flash Entropy</option>
+        <option value="combined">Combined</option>
+    </select>
+
+    <hr>
+    <h3>Option 1: Upload mzML / JSON / text spectrum</h3>
+    <input type="file" id="fileInput" accept=".mzML,.json,.txt,.csv">
+    <button id="uploadBtn">Upload & Search</button>
+
+    <hr>
+    <h3>Option 2: Paste mz,intensity pairs</h3>
+    <textarea id="pairs" placeholder="mz intensity\\n100.1 200\\n101.5 150\\n..."></textarea>
+    <input id="precursor" type="number" placeholder="Precursor m/z (required)">
+    <button id="submitBtn">Run Search</button>
+
+    <hr>
+    <div id="output" class="result"></div>
+
+    <script>
+    async function loadLibs(){
+        const r=await fetch('/libraries'); const j=await r.json();
+        const s=document.getElementById('library');
+        (j.available_libraries||[]).forEach(l=>{
+        let o=document.createElement('option'); o.value=l; o.textContent=l; s.appendChild(o);
+        });
+    }
+    async function runTextSearch(){
+        const txt=document.getElementById('pairs').value.trim();
+        if(!txt){alert('Enter peaks');return;}
+        const precursor=parseFloat(document.getElementById('precursor').value);
+        if(!precursor){alert('Precursor m/z required');return;}
+        const peaks=txt.split(/\\n+/).map(l=>l.trim().split(/[,\\s]+/).map(parseFloat)).filter(a=>a.length==2);
+        const payload={spectrum:{precursorMz:precursor,peaks:peaks},library:document.getElementById('library').value,method:document.getElementById('method').value};
+        const res=await fetch('/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        document.getElementById('output').textContent=JSON.stringify(await res.json(),null,2);
+    }
+    async function uploadFile(){
+        const f=document.getElementById('fileInput').files[0];
+        if(!f){alert('No file');return;}
+        const fd=new FormData();
+        fd.append('file',f);
+        fd.append('library',document.getElementById('library').value);
+        fd.append('method',document.getElementById('method').value);
+        const res=await fetch('/upload_search',{method:'POST',body:fd});
+        document.getElementById('output').textContent=JSON.stringify(await res.json(),null,2);
+    }
+    document.getElementById('submitBtn').onclick=runTextSearch;
+    document.getElementById('uploadBtn').onclick=uploadFile;
+    loadLibs();
+    </script>
+    </body></html>
+    """
+
+    @app.route('/')
+    def ui():
+        return render_template_string(HTML_TEMPLATE)
+
+    
+
     # Initial check for the library folder
     print(f"Checking for libraries in '{LIBRARY_FOLDER}'...")
     get_available_libraries()
