@@ -1,0 +1,5 @@
+flask
+matchms
+ms_entropy
+gunicorn
+numpy
